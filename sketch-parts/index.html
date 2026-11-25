@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f5ee">
+  <title>图索 · 零件草图检索</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="categories.js"></script>
+  <script defer src="matcher.js"></script>
+  <script defer src="cases.js"></script>
+  <script defer src="flange-cases.js"></script>
+  <script defer src="eraser.js"></script>
+  <script defer src="shapes.js"></script>
+  <script defer src="app.js"></script>
+  <script defer src="mesh.js"></script>
+  <script defer src="timber.js"></script>
+  <script defer src="mechanical.js"></script>
+  <script defer src="viewer.js"></script>
+  <script defer src="parametric.js"></script>
+  <script defer src="profile.js"></script>
+  <script defer src="vendor/jscad-2.13.0/jscad-modeling.min.js"></script>
+  <script defer src="cad-geometry.js"></script>
+  <script defer src="sketch-features.js"></script>
+  <script defer src="builder.js"></script>
+  <script defer src="warehouse.js"></script><script defer src="cad-workbench.js"></script>
+</head>
+<body>
+  <header><div class="bar">
+    <div class="brand"><i class="plate-mark" aria-hidden="true"></i>图索<span class="brand-sub">零件草图检索</span></div>
+    <nav aria-label="工作区"><button id="work-tab" aria-current="page">检索工作台</button><button id="cad-tab">CAD 工作台</button><button id="warehouse-tab">零件仓库</button><button id="checks-tab">检索历史</button></nav>
+  </div></header>
+  <main>
+    <section id="cad" aria-labelledby="cad-title" hidden></section>
+    <section id="workspace">
+      <div class="heading"><div><h1>零件草图检索</h1><p>画出你记得的形状，查看匹配视角，再核对零件。</p></div><span class="status"><i></i> 本地运行</span></div>
+      <div class="query-tools"><fieldset id="query-mode"><legend class="sr-only">草图类型</legend><label><input type="radio" name="mode" value="plane" checked><span>平面图</span></label><label><input type="radio" name="mode" value="solid"><span>立体图</span></label></fieldset><span id="mode-help">画任意一个正投影视图，自动比对正视、俯视和左视。</span></div>
+      <div class="category-bar"><label for="query-category">检索范围</label><select id="query-category"></select></div>
+      <div class="layout">
+        <section class="panel">
+          <div class="panel-head"><h2 id="pad-title">草图画板</h2><span class="meta" id="stroke-count">0 笔</span></div>
+          <div id="front-summary" hidden><canvas id="front-preview" width="100" height="84" aria-label="已提交的平面草图"></canvas><div>已保留平面草图<button type="button" class="replay" id="edit-front">返回编辑</button></div></div>
+          <div class="pad-tools">
+            <div id="pad-tools" role="group" aria-label="画板工具">
+              <button type="button" data-tool="pen" aria-pressed="true">画笔</button>
+              <button type="button" data-tool="whole" aria-pressed="false">整笔擦除</button>
+              <button type="button" data-tool="partial" aria-pressed="false">局部擦除</button>
+            </div>
+            <label id="eraser-size-control" hidden>直径 <input id="eraser-size" type="range" min="8" max="80" value="24"><output id="eraser-size-value" for="eraser-size">24 px</output></label>
+          </div>
+          <small>画完按住 0.5 秒整形，继续拖动可缩放。</small>
+          <div id="shape-editor" hidden>
+            <label>图形 <select id="shape-select"></select></label>
+            <label><span id="shape-width-label">宽</span> <input id="shape-width" type="number" min="0.01" step="any" size="6"> mm</label>
+            <label id="shape-height-control">高 <input id="shape-height" type="number" min="0.01" step="any" size="6"> mm</label>
+            <label>转角 <input id="shape-angle" type="number" step="any"> °</label>
+            <button id="shape-apply" type="button">应用尺寸</button>
+            <div id="triangle-editor" hidden><span>顶点坐标（mm）</span> <span id="triangle-points"></span> <button type="button" id="triangle-apply">应用顶点</button></div>
+            <button id="shape-restore" type="button">恢复原笔迹</button>
+          </div>
+          <div class="sheet">
+            <span class="sheet-label" id="view-label">平面图</span>
+            <canvas id="pad" width="960" height="600" aria-label="在这里用鼠标或触控绘制零件草图"></canvas>
+            <span id="eraser-cursor" aria-hidden="true" hidden></span>
+            <div id="empty"><b id="empty-title">从外轮廓开始画</b><span id="empty-tip">按住拖动，松开后可继续画孔或槽</span></div>
+          </div>
+          <div class="actions"><div><button type="button" id="undo" class="subtle" disabled>撤销</button> <button type="button" id="clear" class="subtle" disabled>清空</button></div><button id="cad-open" class="subtle">CAD 工作台</button><button type="button" id="search" class="primary" disabled><span id="search-label">查找零件</span> →</button></div>
+        </section>
+        <section class="panel reference-panel">
+          <div class="panel-head"><h2 id="list-title">参考零件</h2><span class="meta" id="part-count"></span></div>
+          <div class="prompt" id="prompt" hidden><p id="prompt-text"></p><button type="button" id="add-left" class="subtle">补画左视图 →</button></div>
+          <div id="parts" tabindex="0" role="region" aria-labelledby="list-title"></div>
+          <p id="list-note" class="note"></p>
+        </section>
+      </div>
+      <div class="sample-link" id="front-examples"><span>模拟笔迹</span><button id="try-flange">试用双视图案例 ↗</button><button id="try-case">试用板件案例 ↗</button></div>
+      <div class="sample-link" id="left-examples" hidden><span>载入左视笔迹</span><button id="try-flat">平背轮廓 ↗</button><button id="try-boss">带凸台轮廓 ↗</button></div>
+      <span class="sr-only" aria-live="polite" id="announcement"></span>
+      <dialog id="review"><h2 id="review-name"></h2><p id="review-meta"></p><div id="review-views" class="orthos"></div><p id="review-status" role="status"></p><div class="actions"><button id="review-close" class="subtle">返回候选</button><button id="review-save" class="primary">确认并导出记录</button></div></dialog>
+    </section>
+    <section id="warehouse" hidden>
+      <div class="heading"><div><h1>零件仓库</h1><p>选择类别浏览零件，点击模型查看立体形状和图纸。</p></div></div>
+      <section class="stock-directory panel" aria-labelledby="stock-directory-title">
+        <div class="panel-head"><h2 id="stock-directory-title">分类目录</h2></div>
+        <div class="stock-tools"><label>类别名称<input id="category-name" maxlength="60"></label><button id="add-class">新建类别</button><button id="rename-class" disabled>重命名当前类别</button></div>
+        <div id="stock-directory" role="group" aria-label="仓库类别"></div>
+      </section>
+      <div class="store-layout">
+        <section class="panel stock">
+          <div class="panel-head"><h2 id="stock-list-title">全部零件</h2><span id="stock-count" class="meta" aria-live="polite"></span></div>
+          <div class="stock-tools"><label>查找零件<input id="stock-filter" type="search" placeholder="输入名称或编号"></label></div>
+          <div id="stock-list"></div>
+          <details class="stock-import"><summary>导入 STL 模型</summary>
+            <div class="stock-tools"><label>零件编号<input id="model-id" maxlength="60" placeholder="留空使用文件名"></label><label>入库类别<select id="import-category"></select></label><input id="model-file" type="file" accept=".stl" hidden><button id="import-model" class="primary">选择 STL 文件</button></div>
+          </details>
+          <p id="store-status" role="status" class="note">支持 ASCII 和二进制 STL。模型使用 Z 轴向上。</p>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2 id="model-name">模型预览</h2><button id="reset-camera" class="subtle" disabled>复位视角</button></div>
+          <div class="model-stage"><canvas id="model-view" width="720" height="440" aria-label="可拖动旋转、滚轮缩放的三维模型"></canvas><span id="model-empty">导入模型或选择示例支架</span></div>
+          <p class="note" id="model-info">拖动旋转 · 滚轮缩放</p>
+          <div id="sample-info" class="stock-tools" hidden><span id="sample-detail"></span><a id="sample-download" download>下载 STL</a></div>
+          <div id="edit-generated" class="stock-tools" hidden><button id="edit-parameters" class="subtle">编辑参数</button></div>
+          <div id="edit-class" class="stock-tools" hidden><label>零件名称<input id="part-name" maxlength="100"></label><label>所属类别<select id="model-category"></select></label><button id="save-category" class="subtle">保存零件信息</button></div>
+        </section>
+        <section class="panel" aria-labelledby="stock-views-title">
+          <div class="panel-head"><h2 id="stock-views-title">零件视图</h2></div>
+          <div id="orthos" class="orthos"></div>
+        </section>
+      </div>
+    </section>
+    <section id="checks" hidden>
+      <div class="heading"><div><h1>检索历史</h1><p>按时间从新到旧显示最近 6 次检索。</p></div></div>
+      <div class="panel table-wrap"><table><thead><tr><th>检索时间</th><th>视图</th><th>检索范围</th><th>候选数</th><th>第一候选</th><th>历史草图</th></tr></thead><tbody id="records"></tbody></table></div>
+      <dialog id="history-review" aria-labelledby="history-title"><h2 id="history-title">历史草图</h2><div id="history-images"></div><p id="history-legacy" hidden>此记录只保存了图片，无法还原原始笔迹。</p><form method="dialog"><button id="history-edit" type="button" class="primary">返回画板编辑</button> <button class="subtle">关闭</button></form></dialog>
+      <p id="history-empty" class="note">暂无检索历史。</p>
+    </section>
+    <button type="button" hidden id="build-sketch" disabled>使用画板草图</button>
+    <dialog id="builder" aria-labelledby="builder-title">
+      <div class="panel-head"><h2 id="builder-title">草图参数建模</h2><button id="builder-close" class="subtle">返回画板</button></div>
+      <div class="builder-grid">
+        <div class="builder-form">
+          <label for="builder-type">建模方式</label><select id="builder-type"></select>
+          <p id="builder-hint"></p>
+          <div id="builder-fields"></div>
+        </div>
+        <div class="builder-preview">
+          <div class="sketch-reference"><canvas id="builder-sketch" width="320" height="192"></canvas><span id="builder-caption">原始草图</span></div>
+          <div class="panel-head"><h2>三维预览</h2><button id="builder-reset" class="replay">复位视角</button></div>
+          <div class="model-stage"><canvas id="builder-view" width="720" height="480" aria-label="拖动旋转模型，滚轮缩放"></canvas></div>
+          <p class="note">拖动旋转 · 滚轮缩放 · 请核对实际尺寸</p>
+        </div>
+      </div>
+      <div class="builder-footer"><p id="builder-status" role="status"></p><button id="builder-cad" class="subtle">继续 CAD 建模</button><button id="builder-export" class="subtle">下载 STL</button><button id="builder-save" class="primary">保存到仓库</button></div>
+    </dialog>
+  </main>
+</body>
+</html>
